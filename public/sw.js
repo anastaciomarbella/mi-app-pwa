@@ -1,9 +1,10 @@
 importScripts('https://unpkg.com/idb/build/iife/index-min.js');
 
-const CACHE_NAME = 'mi-app-cache-v1';
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = 'mi-app-cache-v2';
+const STATIC_ASSETS = [
   '/',
   '/index.html',
+  '/offline.html',      // 👉 Página offline personalizada
   '/favicon.ico',
   '/manifest.json',
   '/icons/icon-192.png',
@@ -14,7 +15,6 @@ const ASSETS_TO_CACHE = [
 const DB_NAME = 'tasks-db';
 const STORE_NAME = 'tasks';
 
-// Abrir IndexedDB
 function openDB() {
   return idb.openDB(DB_NAME, 1, {
     upgrade(db) {
@@ -25,7 +25,6 @@ function openDB() {
   });
 }
 
-// Sincronizar tareas con servidor
 async function syncTasks() {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -52,24 +51,24 @@ async function syncTasks() {
   await tx.done;
 }
 
-// ---------- Install / Activate / Fetch ----------
+// ---------- Install / Activate ----------
 self.addEventListener('install', event => {
-  console.log('[SW] Instalando Service Worker...');
+  console.log('[SW] Instalando...');
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(ASSETS_TO_CACHE))
+      .then(cache => cache.addAll(STATIC_ASSETS))
       .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', event => {
-  console.log('[SW] Activando Service Worker...');
+  console.log('[SW] Activando...');
   event.waitUntil(
     caches.keys().then(keys => 
       Promise.all(
         keys.map(key => {
           if (key !== CACHE_NAME) {
-            console.log('[SW] Eliminando cache antiguo:', key);
+            console.log('[SW] Borrando cache viejo:', key);
             return caches.delete(key);
           }
         })
@@ -79,23 +78,60 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+// ---------- Estrategias de cache ----------
 self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request).then(resp => {
-      return resp || fetch(event.request)
-        .catch(() => {
-          // Fallback si no hay conexión
-          if (event.request.destination === 'document') {
-            return caches.match('/');
-          }
-        });
-    })
-  );
+  const req = event.request;
+
+  // 1. App Shell → cache-first
+  if (STATIC_ASSETS.includes(new URL(req.url).pathname)) {
+    event.respondWith(
+      caches.match(req).then(resp => resp || fetch(req))
+    );
+    return;
+  }
+
+  // 2. Imágenes → stale-while-revalidate
+  if (req.destination === 'image') {
+    event.respondWith(
+      caches.open('images-cache').then(async cache => {
+        try {
+          const fresh = await fetch(req);
+          cache.put(req, fresh.clone());
+          return fresh;
+        } catch {
+          return cache.match(req);
+        }
+      })
+    );
+    return;
+  }
+
+  // 3. API → network-first
+  if (req.url.includes('/api/')) {
+    event.respondWith(
+      fetch(req)
+        .then(resp => {
+          const clone = resp.clone();
+          caches.open('api-cache').then(cache => cache.put(req, clone));
+          return resp;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // 4. Fallback para páginas offline
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req).catch(() => caches.match('/offline.html'))
+    );
+  }
 });
 
 // ---------- Background Sync ----------
 self.addEventListener('sync', event => {
   if (event.tag === 'sync-entries') {
+    console.log('[SW] Sincronización en segundo plano...');
     event.waitUntil(syncTasks());
   }
 });
