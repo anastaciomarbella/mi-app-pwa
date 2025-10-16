@@ -8,9 +8,14 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "start": "node server.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "firebase": "^12.4.0",
+    "idb": "^8.0.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
@@ -30,5 +35,18 @@
     "typescript-eslint": "^8.39.1",
     "vite": "^7.1.2",
     "workbox-cli": "^7.3.0"
-  }
+  },
+  "description": "This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.",
+  "main": "eslint.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anastaciomarbella/mi-app-pwa.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/anastaciomarbella/mi-app-pwa/issues"
+  },
+  "homepage": "https://github.com/anastaciomarbella/mi-app-pwa#readme"
 }
