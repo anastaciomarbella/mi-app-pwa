@@ -4,7 +4,7 @@ const CACHE_NAME = 'mi-app-cache-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/offline.html',      // 👉 Página offline personalizada
+  '/offline.html',
   '/favicon.ico',
   '/manifest.json',
   '/icons/icon-192.png',
@@ -134,4 +134,28 @@ self.addEventListener('sync', event => {
     console.log('[SW] Sincronización en segundo plano...');
     event.waitUntil(syncTasks());
   }
+});
+
+// ---------- Push Notifications ----------
+self.addEventListener('push', event => {
+  const data = event.data ? event.data.json() : { title: 'Notificación', body: 'Tienes un mensaje' };
+  
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icons/icon-192.png'
+    })
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then(clientList => {
+      if (clientList.length > 0) {
+        return clientList[0].focus();
+      }
+      return clients.openWindow('/');
+    })
+  );
 });
