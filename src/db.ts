@@ -1,12 +1,7 @@
+// src/db.ts
 import { openDB } from "idb";
 import { db as firestore } from "./firebase";
-import {
-  collection,
-  addDoc,
-  getDocs,
-  deleteDoc,
-  doc,
-} from "firebase/firestore";
+import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
 
 export const dbPromise = openDB("tasks-db", 1, {
   upgrade(db) {
@@ -17,7 +12,7 @@ export const dbPromise = openDB("tasks-db", 1, {
 });
 
 export type Task = {
-  id?: number | string; // Puede ser número local o string de Firestore
+  id?: number | string; // Número local o ID de Firestore
   title: string;
   description?: string;
   date?: string;
@@ -78,9 +73,7 @@ export const registerSync = async (): Promise<void> => {
         await syncManager.register("sync-entries");
         console.log("🔁 Sincronización en segundo plano registrada");
       } else {
-        console.log(
-          "⚠️ SyncManager no disponible en ServiceWorkerRegistration"
-        );
+        console.log("⚠️ SyncManager no disponible en ServiceWorkerRegistration");
       }
     } catch (err) {
       console.error("❌ Error registrando Background Sync:", err);

@@ -1,3 +1,4 @@
+// public/sw.js
 importScripts('https://unpkg.com/idb/build/iife/index-min.js');
 
 const CACHE_NAME = 'mi-app-cache-v2';
@@ -7,8 +8,8 @@ const STATIC_ASSETS = [
   '/offline.html',
   '/favicon.ico',
   '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png'
 ];
 
 // ---------- IndexedDB ----------
@@ -33,16 +34,14 @@ async function syncTasks() {
 
   for (const task of allTasks) {
     try {
-      const response = await fetch('/api/sync', {
+      // 🔹 Con Firebase, reemplaza '/api/sync' con tu lógica FCM o Firestore
+      await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(task),
       });
-
-      if (response.ok) {
-        await store.delete(task.id);
-        console.log('✅ Tarea sincronizada:', task.id);
-      }
+      await store.delete(task.id);
+      console.log('✅ Tarea sincronizada:', task.id);
     } catch (err) {
       console.log('❌ Error sincronizando:', task.id, err);
     }
@@ -64,7 +63,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   console.log('[SW] Activando...');
   event.waitUntil(
-    caches.keys().then(keys => 
+    caches.keys().then(keys =>
       Promise.all(
         keys.map(key => {
           if (key !== CACHE_NAME) {
@@ -143,7 +142,7 @@ self.addEventListener('push', event => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: '/icons/icon-192.png'
+      icon: '/icons/icon-192x192.png'
     })
   );
 });

@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
-import { saveTask, getTasks, deleteTask, registerSync } from "./db";
+import {
+  saveTask,
+  getTasks,
+  deleteTask,
+  registerSync,
+} from "./db";
 import type { Task } from "./db";
+import { requestNotificationPermission } from "./firebase";
 
 function App() {
   const [tarea, setTarea] = useState("");
@@ -8,21 +14,21 @@ function App() {
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  // Cargar tareas desde IndexedDB al iniciar
+  // Cargar tareas e inicializar notificaciones
   useEffect(() => {
-    async function fetchTasks() {
+    async function initApp() {
       const allTasks = await getTasks();
       setListaTareas(allTasks);
+
+      // Pedir permiso de notificaciones Firebase
+      await requestNotificationPermission();
     }
-    fetchTasks();
+
+    initApp();
 
     // Detectar cambios de conexión
-    function handleOnline() {
-      setIsOnline(true);
-    }
-    function handleOffline() {
-      setIsOnline(false);
-    }
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
@@ -33,34 +39,42 @@ function App() {
     };
   }, []);
 
-  // Formulario: agregar/editar
+  // Formulario: agregar o editar tarea
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (tarea.trim() === "") return;
 
     if (editIndex !== null) {
-      // Editar tarea existente en memoria
       const nuevasTareas = [...listaTareas];
       nuevasTareas[editIndex].title = tarea;
       setListaTareas(nuevasTareas);
       setEditIndex(null);
 
-      // Guardar edición en IndexedDB (eliminar la original y agregar nueva)
       if (nuevasTareas[editIndex].id !== undefined) {
         await deleteTask(nuevasTareas[editIndex].id);
       }
       await saveTask(nuevasTareas[editIndex]);
-
-      // Registrar sincronización en segundo plano
       await registerSync();
+
+      // Notificación local al editar
+      new Notification("Tarea actualizada", {
+        body: `Se actualizó: ${tarea}`,
+        icon: "/icons/icon-192.png",
+      });
     } else {
-      // Crear nueva tarea
-      const nuevaTarea: Task = { title: tarea, date: new Date().toLocaleString() };
+      const nuevaTarea: Task = {
+        title: tarea,
+        date: new Date().toLocaleString(),
+      };
       setListaTareas([...listaTareas, nuevaTarea]);
       await saveTask(nuevaTarea);
-
-      // Registrar sincronización en segundo plano
       await registerSync();
+
+      // Notificación local al agregar
+      new Notification("Nueva tarea agregada", {
+        body: `Se agregó: ${tarea}`,
+        icon: "/icons/icon-192.png",
+      });
     }
 
     setTarea("");
@@ -74,6 +88,12 @@ function App() {
     }
     const nuevasTareas = listaTareas.filter((_, i) => i !== index);
     setListaTareas(nuevasTareas);
+
+    // Notificación local
+    new Notification("Tarea eliminada", {
+      body: `Se eliminó una tarea.`,
+      icon: "/icons/icon-192.png",
+    });
   };
 
   // Editar tarea
@@ -96,7 +116,7 @@ function App() {
       }}
     >
       <h1>🌷 Bienvenida a tu App React 🌷</h1>
-      <p>Aplicación progresiva con almacenamiento offline.</p>
+      <p>Aplicación progresiva con almacenamiento offline y notificaciones.</p>
       <p style={{ color: isOnline ? "green" : "red" }}>
         Estado de conexión: {isOnline ? "Online" : "Offline"}
       </p>
