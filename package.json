@@ -4,12 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "node api.js && vite",
+    "build": "node api.js && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "prepare": "husky install",
-    "start": "node server.js"
+    "start": "node api.js && node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
