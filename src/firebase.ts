@@ -13,6 +13,9 @@ const firebaseConfig = {
   measurementId: "G-1SKW4SGEDN"
 };
 
+
+
+
 const app = initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
@@ -30,8 +33,11 @@ export async function requestNotificationPermission() {
     return token;
   } else {
     console.warn("Permiso de notificaciones denegado");
+
   }
+
 }
+
 
 // Escuchar notificaciones en primer plano
 onMessage(messaging, (payload) => {

@@ -1,22 +1,47 @@
-// public/sw.js
+// Importa scripts compat de Firebase para SW
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 importScripts('https://unpkg.com/idb/build/iife/index-min.js');
 
-const CACHE_NAME = 'mi-app-cache-v3';
+// Configuración Firebase (misma que en tu archivo principal)
+const firebaseConfig = {
+  apiKey: "AIzaSyCnOsFkxZEdMXPu_DtEfI2Rexkq4Fsje2k",
+  authDomain: "mi-awp.firebaseapp.com",
+  projectId: "mi-awp",
+  storageBucket: "mi-awp.firebasestorage.app",
+  messagingSenderId: "580697464751",
+  appId: "1:580697464751:web:06fc2a00db56b10661d95a",
+  measurementId: "G-1SKW4SGEDN"
+};
+
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
+
+// Manejo de notificaciones en background
+messaging.onBackgroundMessage((payload) => {
+  console.log('[SW] Notificación en background', payload);
+  const notification = payload.notification || {};
+  self.registration.showNotification(notification.title || 'Notificación', {
+    body: notification.body || 'Tienes un mensaje',
+    icon: '/icons/icon-192x192.png'
+  });
+});
+
+// ---------- Offline y Cache ----------
+const CACHE_NAME = 'mi-app-cache-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/app.tsx',
   '/offline.html',
   '/favicon.ico',
   '/manifest.json',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
-  // 🔹 Agrega aquí tus bundles reales de React/Vite
   '/src/main.js',
   '/src/styles.css'
 ];
 
-// ---------- IndexedDB ----------
+// IndexedDB para tareas offline
 const DB_NAME = 'tasks-db';
 const STORE_NAME = 'tasks';
 
@@ -30,7 +55,7 @@ function openDB() {
   });
 }
 
-// ---------- Sincronización ----------
+// Sync de tareas pendientes
 async function syncTasks() {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -39,11 +64,10 @@ async function syncTasks() {
 
   for (const task of allTasks) {
     try {
-      // 🔹 Cambia esta URL por tu backend o endpoint Firestore
       await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(task),
+        body: JSON.stringify(task)
       });
       await store.delete(task.id);
       console.log('✅ Tarea sincronizada:', task.id);
@@ -54,123 +78,46 @@ async function syncTasks() {
   await tx.done;
 }
 
-// ---------- Install ----------
-self.addEventListener('install', event => {
-  console.log('[SW] Instalando...');
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(STATIC_ASSETS))
-      .then(() => self.skipWaiting())
-  );
-});
+// Install & Activate
+self.addEventListener('install', e => e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(STATIC_ASSETS)).then(() => self.skipWaiting())));
+self.addEventListener('activate', e => e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 
-// ---------- Activate ----------
-self.addEventListener('activate', event => {
-  console.log('[SW] Activando...');
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.map(key => key !== CACHE_NAME && caches.delete(key))
-      )
-    )
-  );
-  self.clients.claim();
-});
-
-// ---------- Fetch ----------
+// Fetch con fallback offline
 self.addEventListener('fetch', event => {
   const req = event.request;
+  const url = new URL(req.url);
 
-  // 1️⃣ App Shell → cache-first
-  if (STATIC_ASSETS.includes(new URL(req.url).pathname)) {
-    event.respondWith(caches.match(req).then(resp => resp || fetch(req)));
+  // Assets cache-first
+  if (STATIC_ASSETS.includes(url.pathname)) {
+    event.respondWith(caches.match(req).then(resp => resp || fetch(req).catch(() => caches.match('/offline.html'))));
     return;
   }
 
-  // 2️⃣ Imágenes → stale-while-revalidate
-  if (req.destination === 'image') {
-    event.respondWith(
-      caches.open('images-cache').then(async cache => {
-        try {
-          const fresh = await fetch(req);
-          cache.put(req, fresh.clone());
-          return fresh;
-        } catch {
-          return cache.match(req);
-        }
-      })
-    );
-    return;
-  }
-
-  // 3️⃣ API → network-first con fallback a IndexedDB
-  if (req.url.includes('/api/')) {
-    if (req.url.includes('/api/tasks')) {
-      event.respondWith(
-        fetch(req)
-          .then(resp => {
-            caches.open('api-cache').then(cache => cache.put(req, resp.clone()));
-            return resp;
-          })
-          .catch(async () => {
-            const db = await openDB();
-            const tasks = await db.getAll(STORE_NAME);
-            return new Response(JSON.stringify(tasks), {
-              headers: { 'Content-Type': 'application/json' }
-            });
-          })
-      );
-      return;
-    }
-
+  // API network-first con fallback a IndexedDB
+  if (url.pathname.startsWith('/api/tasks')) {
     event.respondWith(
       fetch(req)
-        .then(resp => {
-          caches.open('api-cache').then(cache => cache.put(req, resp.clone()));
-          return resp;
+        .then(resp => { caches.open('api-cache').then(c => c.put(req, resp.clone())); return resp; })
+        .catch(async () => {
+          const db = await openDB();
+          const tasks = await db.getAll(STORE_NAME);
+          return new Response(JSON.stringify(tasks), { headers: { 'Content-Type': 'application/json' } });
         })
-        .catch(() =>
-          caches.match(req).then(resp =>
-            resp || new Response(JSON.stringify({ error: 'Sin conexión y sin caché' }), {
-              headers: { 'Content-Type': 'application/json' }
-            })
-          )
-        )
     );
     return;
   }
 
-  // 4️⃣ Páginas → fallback offline
+  // Otros requests -> fallback offline
   if (req.mode === 'navigate') {
     event.respondWith(fetch(req).catch(() => caches.match('/offline.html')));
   }
 });
 
-// ---------- Background Sync ----------
-self.addEventListener('sync', event => {
-  if (event.tag === 'sync-entries') {
-    console.log('[SW] Sincronización en segundo plano...');
-    event.waitUntil(syncTasks());
-  }
-});
+// Background Sync
+self.addEventListener('sync', e => { if (e.tag === 'sync-entries') e.waitUntil(syncTasks()); });
 
-// ---------- Push Notifications ----------
-self.addEventListener('push', event => {
-  const data = event.data ? event.data.json() : { title: 'Notificación', body: 'Tienes un mensaje' };
-  event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: '/icons/icon-192x192.png'
-    })
-  );
-});
-
+// Click en notificación
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  event.waitUntil(
-    clients.matchAll({ type: 'window' }).then(clientList => {
-      if (clientList.length > 0) return clientList[0].focus();
-      return clients.openWindow('/');
-    })
-  );
+  event.waitUntil(clients.matchAll({ type: 'window' }).then(list => list.length ? list[0].focus() : clients.openWindow('/')));
 });
