@@ -5,6 +5,7 @@ const CACHE_NAME = 'mi-app-cache-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
+  '/app.tsx',
   '/offline.html',
   '/favicon.ico',
   '/manifest.json',
