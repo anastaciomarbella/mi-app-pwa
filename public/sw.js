@@ -1,9 +1,9 @@
-// Importa scripts compat de Firebase para SW
+
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 importScripts('https://unpkg.com/idb/build/iife/index-min.js');
 
-// Configuración Firebase (misma que en tu archivo principal)
+
 const firebaseConfig = {
   apiKey: "AIzaSyCnOsFkxZEdMXPu_DtEfI2Rexkq4Fsje2k",
   authDomain: "mi-awp.firebaseapp.com",
@@ -17,7 +17,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// Manejo de notificaciones en background
+
 messaging.onBackgroundMessage((payload) => {
   console.log('[SW] Notificación en background', payload);
   const notification = payload.notification || {};
@@ -27,8 +27,8 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-// ---------- Offline y Cache ----------
-const CACHE_NAME = 'mi-app-cache-v5';
+
+const CACHE_NAME = 'mi-app-cache-v6';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -41,10 +41,9 @@ const STATIC_ASSETS = [
   '/src/styles.css'
 ];
 
-// IndexedDB para tareas offline
+
 const DB_NAME = 'tasks-db';
 const STORE_NAME = 'tasks';
-
 function openDB() {
   return idb.openDB(DB_NAME, 1, {
     upgrade(db) {
@@ -55,7 +54,7 @@ function openDB() {
   });
 }
 
-// Sync de tareas pendientes
+
 async function syncTasks() {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -78,22 +77,37 @@ async function syncTasks() {
   await tx.done;
 }
 
-// Install & Activate
-self.addEventListener('install', e => e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(STATIC_ASSETS)).then(() => self.skipWaiting())));
-self.addEventListener('activate', e => e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 
-// Fetch con fallback offline
+self.addEventListener('install', e =>
+  e.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(c => c.addAll(STATIC_ASSETS))
+      .then(() => self.skipWaiting())
+  )
+);
+
+self.addEventListener('activate', e =>
+  e.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  )
+);
+
+
+
 self.addEventListener('fetch', event => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Assets cache-first
+ 
   if (STATIC_ASSETS.includes(url.pathname)) {
-    event.respondWith(caches.match(req).then(resp => resp || fetch(req).catch(() => caches.match('/offline.html'))));
+    event.respondWith(
+      caches.match(req)
+        .then(resp => resp || fetch(req).catch(() => caches.match('/offline.html')))
+    );
     return;
   }
-
-  // API network-first con fallback a IndexedDB
   if (url.pathname.startsWith('/api/tasks')) {
     event.respondWith(
       fetch(req)
@@ -107,17 +121,19 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Otros requests -> fallback offline
   if (req.mode === 'navigate') {
     event.respondWith(fetch(req).catch(() => caches.match('/offline.html')));
   }
 });
+self.addEventListener('sync', e => {
+  if (e.tag === 'sync-entries') e.waitUntil(syncTasks());
+});
 
-// Background Sync
-self.addEventListener('sync', e => { if (e.tag === 'sync-entries') e.waitUntil(syncTasks()); });
 
-// Click en notificación
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  event.waitUntil(clients.matchAll({ type: 'window' }).then(list => list.length ? list[0].focus() : clients.openWindow('/')));
+  event.waitUntil(
+    clients.matchAll({ type: 'window' })
+      .then(list => list.length ? list[0].focus() : clients.openWindow('/'))
+  );
 });
