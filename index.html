@@ -8,24 +8,50 @@
     <meta name="theme-color" content="#f8b3c8" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
-
   <body>
-    <!-- Pantalla de bienvenida -->
     <div id="intro" class="welcome-screen">
       <h1>🌸 Bienvenido a Mi App Progresiva 🌸</h1>
       <p>Presiona el botón para comenzar</p>
       <button id="startBtn">Haz clic</button>
     </div>
-
-    <!-- Contenedor para React -->
     <div id="root" style="display: none;"></div>
 
     <script type="module">
-      document.getElementById("startBtn").addEventListener("click", async () => {
+      async function startApp() {
+        // Guardar en localStorage que ya inició
+        localStorage.setItem("appStarted", "true");
+
         document.getElementById("intro").style.display = "none";
-        document.getElementById("root").style.display = "block";
-        await import("/src/main.tsx");
-      });
+        const root = document.getElementById("root");
+        root.style.display = "block";
+        try {
+          await import("/src/main.tsx");
+        } catch (err) {
+          console.warn("⚠️ No se pudo cargar la app, usando modo offline", err);
+          root.innerHTML = `
+            <div style="text-align:center; padding: 40px; color:#333;">
+              <h2>🌸 Modo Offline 🌸</h2>
+              <p>La app seguirá funcionando, tus tareas se guardarán localmente.</p>
+            </div>
+          `;
+        }
+      }
+
+      // Revisar si ya había iniciado la app antes
+      if (localStorage.getItem("appStarted") === "true") {
+        startApp();
+      } else {
+        document.getElementById("startBtn").addEventListener("click", startApp);
+      }
+
+      // Registrar Service Worker
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('Service Worker registrado ✅', reg))
+            .catch(err => console.error('Error registrando SW:', err));
+        });
+      }
     </script>
   </body>
 </html>

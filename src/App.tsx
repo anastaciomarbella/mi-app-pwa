@@ -1,28 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { saveTask, getTasks, deleteTask, registerSync } from "./db";
 import type { Task } from "./db";
+import { requestNotificationPermission } from "./firebase";
 
 function App() {
   const [tarea, setTarea] = useState("");
   const [listaTareas, setListaTareas] = useState<Task[]>([]);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Cargar tareas desde IndexedDB al iniciar
+  // Cargar tareas de IndexedDB al iniciar
   useEffect(() => {
-    async function fetchTasks() {
+    async function initApp() {
       const allTasks = await getTasks();
       setListaTareas(allTasks);
+      await requestNotificationPermission();
     }
-    fetchTasks();
+    initApp();
 
-    // Detectar cambios de conexión
-    function handleOnline() {
+    const handleOnline = async () => {
       setIsOnline(true);
-    }
-    function handleOffline() {
-      setIsOnline(false);
-    }
+      await registerSync(); // intenta sincronizar
+    };
+    const handleOffline = () => setIsOnline(false);
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
@@ -33,37 +34,48 @@ function App() {
     };
   }, []);
 
-  // Formulario: agregar/editar
+  // Guardar tarea
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (tarea.trim() === "") return;
 
     if (editIndex !== null) {
-      // Editar tarea existente en memoria
       const nuevasTareas = [...listaTareas];
       nuevasTareas[editIndex].title = tarea;
       setListaTareas(nuevasTareas);
-      setEditIndex(null);
 
-      // Guardar edición en IndexedDB (eliminar la original y agregar nueva)
       if (nuevasTareas[editIndex].id !== undefined) {
         await deleteTask(nuevasTareas[editIndex].id);
       }
       await saveTask(nuevasTareas[editIndex]);
 
-      // Registrar sincronización en segundo plano
-      await registerSync();
+      if (!navigator.onLine) {
+        await registerSync();
+      }
+      setEditIndex(null);
     } else {
-      // Crear nueva tarea
-      const nuevaTarea: Task = { title: tarea, date: new Date().toLocaleString() };
+      const nuevaTarea: Task = {
+        title: tarea,
+        date: new Date().toLocaleString(),
+      };
       setListaTareas([...listaTareas, nuevaTarea]);
       await saveTask(nuevaTarea);
 
-      // Registrar sincronización en segundo plano
-      await registerSync();
+      if (!navigator.onLine) {
+        await registerSync();
+      }
     }
 
     setTarea("");
+    inputRef.current?.focus();
+
+    // Notificación local
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("Tarea guardada", {
+        body: tarea,
+        icon: "/icons/icon-192x192.png",
+      });
+    }
   };
 
   // Eliminar tarea
@@ -72,14 +84,21 @@ function App() {
     if (tareaAEliminar.id !== undefined) {
       await deleteTask(tareaAEliminar.id);
     }
-    const nuevasTareas = listaTareas.filter((_, i) => i !== index);
-    setListaTareas(nuevasTareas);
+    setListaTareas(listaTareas.filter((_, i) => i !== index));
+
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("Tarea eliminada", {
+        body: tareaAEliminar.title,
+        icon: "/icons/icon-192x192.png",
+      });
+    }
   };
 
   // Editar tarea
   const handleEditar = (index: number) => {
     setTarea(listaTareas[index].title);
     setEditIndex(index);
+    inputRef.current?.focus();
   };
 
   return (
@@ -87,23 +106,33 @@ function App() {
       style={{
         backgroundColor: "#f8b3c8",
         minHeight: "100vh",
+        padding: "2rem",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "center",
         alignItems: "center",
         color: "#333",
-        padding: "2rem",
       }}
     >
       <h1>🌷 Bienvenida a tu App React 🌷</h1>
-      <p>Aplicación progresiva con almacenamiento offline.</p>
-      <p style={{ color: isOnline ? "green" : "red" }}>
-        Estado de conexión: {isOnline ? "Online" : "Offline"}
+      <p>Aplicación progresiva con almacenamiento offline y notificaciones.</p>
+
+      {/* Indicador de conexión */}
+      <p
+        style={{
+          padding: "0.5rem 1rem",
+          borderRadius: "8px",
+          backgroundColor: isOnline ? "#c8e6c9" : "#ffcdd2",
+          color: isOnline ? "green" : "red",
+          fontWeight: "bold",
+        }}
+      >
+        {isOnline ? "✅ Estás conectado" : "⚠️ Estás sin conexión"}
       </p>
 
       {/* Formulario */}
-      <form onSubmit={handleSubmit} style={{ marginBottom: "2rem" }}>
+      <form onSubmit={handleSubmit} style={{ marginTop: "1rem", marginBottom: "2rem" }}>
         <input
+          ref={inputRef}
           type="text"
           placeholder="Escribe una actividad..."
           value={tarea}
@@ -166,7 +195,6 @@ function App() {
               >
                 Editar
               </button>
-
               <button
                 onClick={() => handleEliminar(index)}
                 style={{
