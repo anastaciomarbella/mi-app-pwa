@@ -1,3 +1,32 @@
+// ------------------------- Firebase -------------------------
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
+importScripts('https://unpkg.com/idb/build/iife/index-min.js');
+
+// Config Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyCnOsFkxZEdMXPu_DtEfI2Rexkq4Fsje2k",
+  authDomain: "mi-awp.firebaseapp.com",
+  projectId: "mi-awp",
+  storageBucket: "mi-awp.firebasestorage.app",
+  messagingSenderId: "580697464751",
+  appId: "1:580697464751:web:06fc2a00db56b10661d95a",
+  measurementId: "G-1SKW4SGEDN"
+};
+
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
+
+// Notificaciones en background
+messaging.onBackgroundMessage((payload) => {
+  console.log('[SW] Notificación en background', payload);
+  const notification = payload.notification || {};
+  self.registration.showNotification(notification.title || 'Notificación', {
+    body: notification.body || 'Tienes un mensaje',
+    icon: '/icons/icon-192x192.png'
+  });
+});
+
 // ------------------------- IndexedDB -------------------------
 const DB_NAME = 'tasks-db';
 const STORE_NAME = 'tasks';
@@ -35,7 +64,7 @@ async function syncTasks() {
 }
 
 // ------------------------- Cache -------------------------
-const CACHE_NAME = 'mi-app-cache-v1';
+const CACHE_NAME = 'mi-app-cache-v7';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -43,10 +72,11 @@ const STATIC_ASSETS = [
   '/favicon.ico',
   '/manifest.json',
   '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png'
+  '/icons/icon-512x512.png',
+  
 ];
 
-// Install
+// ------------------------- Eventos SW -------------------------
 self.addEventListener('install', e =>
   e.waitUntil(
     caches.open(CACHE_NAME)
@@ -55,7 +85,6 @@ self.addEventListener('install', e =>
   )
 );
 
-// Activate
 self.addEventListener('activate', e =>
   e.waitUntil(
     caches.keys()
@@ -64,16 +93,17 @@ self.addEventListener('activate', e =>
   )
 );
 
-// Fetch
 self.addEventListener('fetch', event => {
   const req = event.request;
   const url = new URL(req.url);
 
+  // Cache First: App Shell
   if (STATIC_ASSETS.includes(url.pathname)) {
-    event.respondWith(caches.match(req).then(c => c || fetch(req)));
+    event.respondWith(caches.match(req).then(cached => cached || fetch(req)));
     return;
   }
 
+  // Stale While Revalidate: Imágenes
   if (req.destination === 'image') {
     event.respondWith(
       caches.match(req).then(cached => {
@@ -87,6 +117,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Network First: API
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(req)
@@ -95,6 +126,7 @@ self.addEventListener('fetch', event => {
           return resp;
         })
         .catch(async () => {
+          // fallback: IndexedDB si es /api/tasks
           if (url.pathname.startsWith('/api/tasks')) {
             const db = await openDB();
             const tasks = await db.getAll(STORE_NAME);
@@ -106,6 +138,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Navegación offline
   if (req.mode === 'navigate') {
     event.respondWith(fetch(req).catch(() => caches.match('/offline.html')));
   }
@@ -117,17 +150,17 @@ self.addEventListener('sync', e => {
 });
 
 // Notification click
-self.addEventListener('notificationclick', e => {
-  e.notification.close();
-  e.waitUntil(
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
     clients.matchAll({ type: 'window' })
       .then(list => list.length ? list[0].focus() : clients.openWindow('/'))
   );
 });
 
-// Push genérico
-self.addEventListener('push', e => {
-  const data = e.data ? e.data.json() : {};
+// Push API genérica
+self.addEventListener('push', event => {
+  const data = event.data ? event.data.json() : {};
   self.registration.showNotification(data.title || "Notificación", {
     body: data.body || "Tienes un mensaje nuevo",
     icon: "/icons/icon-192x192.png"

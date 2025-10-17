@@ -15,8 +15,12 @@
       <button id="startBtn">Haz clic</button>
     </div>
     <div id="root" style="display: none;"></div>
+
     <script type="module">
       async function startApp() {
+        // Guardar en localStorage que ya inició
+        localStorage.setItem("appStarted", "true");
+
         document.getElementById("intro").style.display = "none";
         const root = document.getElementById("root");
         root.style.display = "block";
@@ -32,7 +36,15 @@
           `;
         }
       }
-      document.getElementById("startBtn").addEventListener("click", startApp);
+
+      // Revisar si ya había iniciado la app antes
+      if (localStorage.getItem("appStarted") === "true") {
+        startApp();
+      } else {
+        document.getElementById("startBtn").addEventListener("click", startApp);
+      }
+
+      // Registrar Service Worker
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')

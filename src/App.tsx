@@ -9,17 +9,19 @@ function App() {
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Cargar tareas de IndexedDB al iniciar
   useEffect(() => {
     async function initApp() {
       const allTasks = await getTasks();
       setListaTareas(allTasks);
       await requestNotificationPermission();
     }
-
     initApp();
+
     const handleOnline = async () => {
       setIsOnline(true);
-      await registerSync(); 
+      await registerSync(); // intenta sincronizar
     };
     const handleOffline = () => setIsOnline(false);
 
@@ -32,7 +34,7 @@ function App() {
     };
   }, []);
 
- 
+  // Guardar tarea
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (tarea.trim() === "") return;
@@ -41,7 +43,6 @@ function App() {
       const nuevasTareas = [...listaTareas];
       nuevasTareas[editIndex].title = tarea;
       setListaTareas(nuevasTareas);
-      setEditIndex(null);
 
       if (nuevasTareas[editIndex].id !== undefined) {
         await deleteTask(nuevasTareas[editIndex].id);
@@ -51,13 +52,7 @@ function App() {
       if (!navigator.onLine) {
         await registerSync();
       }
-      setTarea("");
-      inputRef.current?.focus();
-
-      new Notification("Tarea actualizada", {
-        body: `Se actualizó: ${tarea}`,
-        icon: "/icons/icon-192.png",
-      });
+      setEditIndex(null);
     } else {
       const nuevaTarea: Task = {
         title: tarea,
@@ -69,29 +64,34 @@ function App() {
       if (!navigator.onLine) {
         await registerSync();
       }
-      setTarea("");
-      inputRef.current?.focus();
+    }
 
-      new Notification("Nueva tarea agregada", {
-        body: `Se agregó: ${tarea}`,
-        icon: "/icons/icon-192.png",
+    setTarea("");
+    inputRef.current?.focus();
+
+    // Notificación local
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("Tarea guardada", {
+        body: tarea,
+        icon: "/icons/icon-192x192.png",
       });
     }
   };
 
-
+  // Eliminar tarea
   const handleEliminar = async (index: number) => {
     const tareaAEliminar = listaTareas[index];
     if (tareaAEliminar.id !== undefined) {
       await deleteTask(tareaAEliminar.id);
     }
-    const nuevasTareas = listaTareas.filter((_, i) => i !== index);
-    setListaTareas(nuevasTareas);
+    setListaTareas(listaTareas.filter((_, i) => i !== index));
 
-    new Notification("Tarea eliminada", {
-      body: `Se eliminó una tarea.`,
-      icon: "/icons/icon-192.png",
-    });
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("Tarea eliminada", {
+        body: tareaAEliminar.title,
+        icon: "/icons/icon-192x192.png",
+      });
+    }
   };
 
   // Editar tarea
@@ -106,22 +106,31 @@ function App() {
       style={{
         backgroundColor: "#f8b3c8",
         minHeight: "100vh",
+        padding: "2rem",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "center",
         alignItems: "center",
         color: "#333",
-        padding: "2rem",
       }}
     >
       <h1>🌷 Bienvenida a tu App React 🌷</h1>
       <p>Aplicación progresiva con almacenamiento offline y notificaciones.</p>
-      <p style={{ color: isOnline ? "green" : "red" }}>
-        Estado de conexión: {isOnline ? "Online" : "Offline"}
+
+      {/* Indicador de conexión */}
+      <p
+        style={{
+          padding: "0.5rem 1rem",
+          borderRadius: "8px",
+          backgroundColor: isOnline ? "#c8e6c9" : "#ffcdd2",
+          color: isOnline ? "green" : "red",
+          fontWeight: "bold",
+        }}
+      >
+        {isOnline ? "✅ Estás conectado" : "⚠️ Estás sin conexión"}
       </p>
 
-    
-      <form onSubmit={handleSubmit} style={{ marginBottom: "2rem" }}>
+      {/* Formulario */}
+      <form onSubmit={handleSubmit} style={{ marginTop: "1rem", marginBottom: "2rem" }}>
         <input
           ref={inputRef}
           type="text"
@@ -151,6 +160,8 @@ function App() {
           {editIndex !== null ? "Guardar" : "Agregar"}
         </button>
       </form>
+
+      {/* Lista de tareas */}
       <ul style={{ listStyle: "none", padding: 0, width: "300px" }}>
         {listaTareas.map((t, index) => (
           <li
@@ -184,7 +195,6 @@ function App() {
               >
                 Editar
               </button>
-
               <button
                 onClick={() => handleEliminar(index)}
                 style={{
