@@ -9,23 +9,17 @@ function App() {
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Cargar tareas e inicializar notificaciones
   useEffect(() => {
     async function initApp() {
       const allTasks = await getTasks();
       setListaTareas(allTasks);
-
-      // Pedir permiso de notificaciones Firebase
       await requestNotificationPermission();
     }
 
     initApp();
-
-    // Detectar cambios de conexión
     const handleOnline = async () => {
       setIsOnline(true);
-      await registerSync(); // sincroniza cuando vuelve la conexión
+      await registerSync(); 
     };
     const handleOffline = () => setIsOnline(false);
 
@@ -38,7 +32,7 @@ function App() {
     };
   }, []);
 
-  // Formulario: agregar o editar tarea
+ 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (tarea.trim() === "") return;
@@ -54,12 +48,9 @@ function App() {
       }
       await saveTask(nuevasTareas[editIndex]);
 
-      // ✅ Si está offline, se registra para sincronizar después
       if (!navigator.onLine) {
         await registerSync();
       }
-
-      // Limpiar input y enfocar
       setTarea("");
       inputRef.current?.focus();
 
@@ -75,12 +66,9 @@ function App() {
       setListaTareas([...listaTareas, nuevaTarea]);
       await saveTask(nuevaTarea);
 
-      // ✅ Si está offline, se sincroniza después
       if (!navigator.onLine) {
         await registerSync();
       }
-
-      // Limpiar input y enfocar
       setTarea("");
       inputRef.current?.focus();
 
@@ -91,7 +79,7 @@ function App() {
     }
   };
 
-  // Eliminar tarea
+
   const handleEliminar = async (index: number) => {
     const tareaAEliminar = listaTareas[index];
     if (tareaAEliminar.id !== undefined) {
@@ -132,7 +120,7 @@ function App() {
         Estado de conexión: {isOnline ? "Online" : "Offline"}
       </p>
 
-      {/* Formulario */}
+    
       <form onSubmit={handleSubmit} style={{ marginBottom: "2rem" }}>
         <input
           ref={inputRef}
@@ -163,8 +151,6 @@ function App() {
           {editIndex !== null ? "Guardar" : "Agregar"}
         </button>
       </form>
-
-      {/* Lista de tareas */}
       <ul style={{ listStyle: "none", padding: 0, width: "300px" }}>
         {listaTareas.map((t, index) => (
           <li

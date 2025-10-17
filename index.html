@@ -22,26 +22,33 @@
 
     <script type="module">
       async function startApp() {
+        // 1️⃣ Ocultar pantalla de bienvenida
         document.getElementById("intro").style.display = "none";
-        document.getElementById("root").style.display = "block";
 
+        // 2️⃣ Mostrar contenedor de la app
+        const root = document.getElementById("root");
+        root.style.display = "block";
+
+        // 3️⃣ Intentar cargar React desde el bundle
         try {
-          // Intentar cargar React desde el bundle (caché del SW si offline)
           await import("/src/main.tsx");
         } catch (err) {
-          console.error("⚠️ No se pudo cargar la app, usando offline fallback", err);
-          document.getElementById("root").innerHTML = `
+          console.warn("⚠️ No se pudo cargar la app, usando modo offline", err);
+
+          // 4️⃣ Fallback offline: renderiza algo básico en #root
+          root.innerHTML = `
             <div style="text-align:center; padding: 40px; color:#333;">
-              <h2>🌸 Estás sin conexión 🌸</h2>
-              <p>Tu app seguirá funcionando offline. Las tareas se guardarán localmente y se sincronizarán al volver internet.</p>
+              <h2>🌸 Modo Offline 🌸</h2>
+              <p>La app seguirá funcionando, tus tareas se guardarán localmente.</p>
             </div>
           `;
         }
       }
 
+      // Evento del botón para iniciar la app
       document.getElementById("startBtn").addEventListener("click", startApp);
 
-      // Registrar el Service Worker
+      // Registrar Service Worker
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')

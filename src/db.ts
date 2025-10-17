@@ -12,13 +12,13 @@ export const dbPromise = openDB("tasks-db", 1, {
 });
 
 export type Task = {
-  id?: number | string; // Número local o ID de Firestore
+  id?: number | string; 
   title: string;
   description?: string;
   date?: string;
 };
 
-// ------------------- IndexedDB -------------------
+
 export const saveTask = async (task: Task): Promise<void> => {
   const db = await dbPromise;
   await db.add("tasks", task);
