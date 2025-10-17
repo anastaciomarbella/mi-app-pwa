@@ -19,7 +19,6 @@ export type Task = {
 };
 
 // ------------------- IndexedDB -------------------
-
 export const saveTask = async (task: Task): Promise<void> => {
   const db = await dbPromise;
   await db.add("tasks", task);
@@ -41,7 +40,6 @@ export const clearTasks = async (): Promise<void> => {
 };
 
 // ------------------- Firebase Firestore -------------------
-
 export const saveTaskToFirestore = async (task: Task): Promise<void> => {
   await addDoc(collection(firestore, "tareas"), task);
 };
@@ -59,21 +57,21 @@ export const deleteTaskFromFirestore = async (id: string): Promise<void> => {
 };
 
 // ------------------- Background Sync -------------------
-
 /**
  * Registrar sincronización en segundo plano (Background Sync)
- * Llamar cada vez que se guarda una tarea en modo offline
+ * Llamar cada vez que se guarda o elimina una tarea en modo offline
  */
 export const registerSync = async (): Promise<void> => {
   if ("serviceWorker" in navigator && "SyncManager" in window) {
     try {
       const reg = await navigator.serviceWorker.ready;
-      const syncManager = (reg as any).sync;
-      if (syncManager && typeof syncManager.register === "function") {
-        await syncManager.register("sync-entries");
+      // 'sync' is not present on ServiceWorkerRegistration in all TypeScript lib versions,
+      // so cast to any before calling register to avoid compile error and check at runtime.
+      if ((reg as any).sync && typeof (reg as any).sync.register === "function") {
+        await (reg as any).sync.register("sync-entries");
         console.log("🔁 Sincronización en segundo plano registrada");
       } else {
-        console.log("⚠️ SyncManager no disponible en ServiceWorkerRegistration");
+        console.log("⚠️ Background Sync API no disponible en esta ServiceWorkerRegistration");
       }
     } catch (err) {
       console.error("❌ Error registrando Background Sync:", err);

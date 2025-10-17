@@ -1,10 +1,5 @@
-import { useState, useEffect } from "react";
-import {
-  saveTask,
-  getTasks,
-  deleteTask,
-  registerSync,
-} from "./db";
+import { useState, useEffect, useRef } from "react";
+import { saveTask, getTasks, deleteTask, registerSync } from "./db";
 import type { Task } from "./db";
 import { requestNotificationPermission } from "./firebase";
 
@@ -13,6 +8,7 @@ function App() {
   const [listaTareas, setListaTareas] = useState<Task[]>([]);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Cargar tareas e inicializar notificaciones
   useEffect(() => {
@@ -27,7 +23,10 @@ function App() {
     initApp();
 
     // Detectar cambios de conexión
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = async () => {
+      setIsOnline(true);
+      await registerSync(); // sincroniza cuando vuelve la conexión
+    };
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener("online", handleOnline);
@@ -54,9 +53,16 @@ function App() {
         await deleteTask(nuevasTareas[editIndex].id);
       }
       await saveTask(nuevasTareas[editIndex]);
-      await registerSync();
 
-      // Notificación local al editar
+      // ✅ Si está offline, se registra para sincronizar después
+      if (!navigator.onLine) {
+        await registerSync();
+      }
+
+      // Limpiar input y enfocar
+      setTarea("");
+      inputRef.current?.focus();
+
       new Notification("Tarea actualizada", {
         body: `Se actualizó: ${tarea}`,
         icon: "/icons/icon-192.png",
@@ -68,16 +74,21 @@ function App() {
       };
       setListaTareas([...listaTareas, nuevaTarea]);
       await saveTask(nuevaTarea);
-      await registerSync();
 
-      // Notificación local al agregar
+      // ✅ Si está offline, se sincroniza después
+      if (!navigator.onLine) {
+        await registerSync();
+      }
+
+      // Limpiar input y enfocar
+      setTarea("");
+      inputRef.current?.focus();
+
       new Notification("Nueva tarea agregada", {
         body: `Se agregó: ${tarea}`,
         icon: "/icons/icon-192.png",
       });
     }
-
-    setTarea("");
   };
 
   // Eliminar tarea
@@ -89,7 +100,6 @@ function App() {
     const nuevasTareas = listaTareas.filter((_, i) => i !== index);
     setListaTareas(nuevasTareas);
 
-    // Notificación local
     new Notification("Tarea eliminada", {
       body: `Se eliminó una tarea.`,
       icon: "/icons/icon-192.png",
@@ -100,6 +110,7 @@ function App() {
   const handleEditar = (index: number) => {
     setTarea(listaTareas[index].title);
     setEditIndex(index);
+    inputRef.current?.focus();
   };
 
   return (
@@ -124,6 +135,7 @@ function App() {
       {/* Formulario */}
       <form onSubmit={handleSubmit} style={{ marginBottom: "2rem" }}>
         <input
+          ref={inputRef}
           type="text"
           placeholder="Escribe una actividad..."
           value={tarea}
