@@ -8,34 +8,22 @@
     <meta name="theme-color" content="#f8b3c8" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
-
   <body>
-    <!-- Pantalla de bienvenida -->
     <div id="intro" class="welcome-screen">
       <h1>🌸 Bienvenido a Mi App Progresiva 🌸</h1>
       <p>Presiona el botón para comenzar</p>
       <button id="startBtn">Haz clic</button>
     </div>
-
-    <!-- Contenedor para React -->
     <div id="root" style="display: none;"></div>
-
     <script type="module">
       async function startApp() {
-        // 1️⃣ Ocultar pantalla de bienvenida
         document.getElementById("intro").style.display = "none";
-
-        // 2️⃣ Mostrar contenedor de la app
         const root = document.getElementById("root");
         root.style.display = "block";
-
-        // 3️⃣ Intentar cargar React desde el bundle
         try {
           await import("/src/main.tsx");
         } catch (err) {
           console.warn("⚠️ No se pudo cargar la app, usando modo offline", err);
-
-          // 4️⃣ Fallback offline: renderiza algo básico en #root
           root.innerHTML = `
             <div style="text-align:center; padding: 40px; color:#333;">
               <h2>🌸 Modo Offline 🌸</h2>
@@ -44,11 +32,7 @@
           `;
         }
       }
-
-      // Evento del botón para iniciar la app
       document.getElementById("startBtn").addEventListener("click", startApp);
-
-      // Registrar Service Worker
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
